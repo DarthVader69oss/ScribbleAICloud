@@ -247,7 +247,13 @@ def main():
         overrides = load_config(a.config)["decoding"]
     lm_path = Path(a.ckpt).with_name("char_lm.json")
     rec = Recognizer(a.ckpt, device="cpu", char_lm_path=str(lm_path),
-                     load_lm=lm_path.is_file(), decoding_overrides=overrides)
+                     load_lm=lm_path.is_file(), load_spell=False, decoding_overrides=overrides)
+    if lm_path.is_file():
+        from src.decoding.spell import SpellCorrector
+        corpus_path = Path(a.ckpt).with_name("corpus.txt")
+        extra_words = (corpus_path.read_text(encoding="utf-8", errors="ignore").split()
+                       if corpus_path.is_file() else [])
+        rec.spell = SpellCorrector(extra_words, rec.cfg["decoding"].get("spell_max_distance", 1))
     print(f"loaded {a.ckpt} (epoch {rec.epoch}, val CER {rec.best_cer}); decoders: {rec.available_modes()}")
     for m in rec.available_modes():          # warm-up so the first stroke in front of the audience is fast
         rec.recognize([[(0, 0), (10, 12), (20, 0)], [(25, 5), (35, 5)]], m)

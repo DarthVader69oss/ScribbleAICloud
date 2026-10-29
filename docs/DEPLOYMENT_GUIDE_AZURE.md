@@ -58,17 +58,18 @@ The input is the **training** checkpoint from the original ScribbleAI repo. From
 python scripts/export_model.py \
   --ckpt "../scribbleai/checkpoints/best_finetune.pt" \
   --lm "../scribbleai/data/processed/char_lm.json" \
+  --corpus "../scribbleai/data/raw/corpus.txt" \
   --out build/models/finetuned
-ls -lh build/models/finetuned/model.pt
+ls -lh build/models/finetuned/
 ```
 
-Omit the `--lm` line if you do not have the character language model. That also removes the beam+LM modes. Optionally add `--corpus "../scribbleai/data/raw/corpus.txt"` if that file exists. The model is git-ignored. Verify it locally:
+Use your actual file paths. If `corpus.txt` does not exist, omit the `--corpus` line; spelling will use the built-in English dictionary. `char_lm.json` is required for both **Beam + language model** and **Beam + LM + spelling**. Without it, the available choices are Greedy and Beam search. The model, LM and corpus files are ignored by Git but bundled into the Docker image. Verify locally:
 
 ```bash
 python demo/app.py --ckpt build/models/finetuned/model.pt --no-gradio
 ```
 
-Open `http://127.0.0.1:7860/api/info` and confirm `default_model` is `finetuned`, then press Ctrl+C. The canvas is at `/` and the original interactive dashboard is at `/dashboard`.
+Open `http://127.0.0.1:7860/api/info` and confirm `default_model` is `finetuned` and `modes` includes `greedy`, `beam`, `beam_lm` and `beam_lm_spell`, then press Ctrl+C. The canvas is at `/` and the original interactive dashboard is at `/dashboard`. If the LM modes are absent, verify that `build/models/finetuned/char_lm.json` exists, then restart the server.
 
 ## 5. Configure Azure Terraform
 
