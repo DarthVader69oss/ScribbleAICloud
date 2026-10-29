@@ -106,27 +106,6 @@ resource "azurerm_container_app" "app" {
       image  = "${azurerm_container_registry.app.login_server}/scribbleai:${var.image_tag}"
       cpu    = 1.0
       memory = "2Gi"
-
-      env {
-        name  = "MODEL_IDS"
-        value = "finetuned"
-      }
-      env {
-        name  = "DEFAULT_MODEL"
-        value = "finetuned"
-      }
-      env {
-        name  = "AWS_EXECUTION_ENV"
-        value = "azure-container-apps"
-      }
-      env {
-        name  = "AWS_REGION"
-        value = var.location
-      }
-      env {
-        name  = "GIT_SHA"
-        value = var.image_tag
-      }
     }
   }
 

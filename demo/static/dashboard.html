@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ScribbleAI: dashboard</title>
+<style>
+  /* Same deep-space look as the live page: near-black sky, distant pointy stars, frosted floating boxes.
+     System fonts only, so it works offline. */
+  :root {
+    --desk:#05060a; --sheet:#0e1014; --rule:rgba(205,211,219,.30); --rule-soft:rgba(205,211,219,.10); --band:rgba(255,255,255,.07);
+    --ink:#eceff3; --graphite:#adb3bc; --faint:#79808b; --margin:#ff6f52; --line:rgba(205,211,219,.16); --ok:#52e0a3; --glow:rgba(190,198,210,.22);
+    --ui:"Bahnschrift","DIN Alternate","Segoe UI","Roboto Condensed","Helvetica Neue",Arial,sans-serif;
+  }
+  * { box-sizing:border-box; }
+  html { color-scheme:dark; scroll-behavior:smooth; }
+  html, body { margin:0; background:var(--desk); color:var(--ink); }
+  body { font:16px/1.5 var(--ui); font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased; overflow-x:hidden; min-height:100vh;
+         background:radial-gradient(1100px 620px at 50% -10%, rgba(150,158,170,.17), transparent 70%), var(--desk); }
+  #stars { position:fixed; inset:0; width:100%; height:100%; z-index:0; pointer-events:none; }
+  a { color:var(--ink); text-underline-offset:4px; text-decoration-color:rgba(225,230,236,.5); }
+  a:focus-visible, button:focus-visible, .row:focus-visible { outline:3px solid var(--margin); outline-offset:3px; }
+
+  .nav { position:relative; z-index:6; max-width:1180px; margin:0 auto; padding:18px 22px 0; display:flex; align-items:center; justify-content:space-between; gap:10px 22px; flex-wrap:wrap; font-size:13px; letter-spacing:.1em; text-transform:uppercase; }
+  .state { display:inline-flex; align-items:center; gap:9px; color:var(--graphite); }
+  .state i { width:8px; height:8px; border-radius:50%; background:var(--faint); }
+  .state.on i { background:var(--ok); animation:ping 2.4s ease-out infinite; }
+  .state.off { color:var(--margin); } .state.off i { background:var(--margin); }
+  @keyframes ping { 0% { box-shadow:0 0 0 0 rgba(82,224,163,.55); } 80%,100% { box-shadow:0 0 0 9px rgba(82,224,163,0); } }
+  .links { display:flex; gap:6px 24px; flex-wrap:wrap; align-items:center; }
+  .links a { text-decoration:none; color:var(--graphite); padding:6px 0; position:relative; }
+  .links a::after { content:""; position:absolute; left:0; right:0; bottom:2px; height:1px; background:var(--ink); transform:scaleX(0); transform-origin:left; transition:transform .35s ease; }
+  .links a:hover { color:var(--ink); } .links a:hover::after { transform:scaleX(1); }
+
+  /* hero: the name, centred */
+  .top { position:relative; z-index:2; text-align:center; padding:clamp(24px, 4.5vh, 56px) 20px clamp(40px, 6vh, 70px); }
+  .brand { margin:0; display:block; }
+  #word { display:inline-block; font-family:var(--ui); font-weight:700; font-size:clamp(52px, 11vw, 150px); line-height:1.02; letter-spacing:.01em; white-space:nowrap;
+          background:linear-gradient(180deg, #ffffff 10%, #d6dade 55%, #8d949d 100%); -webkit-background-clip:text; background-clip:text; color:transparent;
+          filter:drop-shadow(0 12px 40px rgba(225,230,236,.28)); transition:opacity .28s ease, transform .28s ease, filter .28s ease; }
+  #word.out { opacity:0; transform:translateY(10px) scale(.985); filter:blur(6px); }
+  .fontname { margin-top:8px; font-size:12px; letter-spacing:.32em; text-transform:uppercase; color:var(--faint); min-height:1.4em; transition:opacity .28s ease; }
+  .fontname.out { opacity:0; }
+  .tag { margin:16px auto 0; max-width:60ch; color:var(--graphite); font-size:clamp(15px, 1.6vw, 18px); }
+
+  main { position:relative; z-index:3; max-width:1180px; margin:0 auto; padding:0 22px; }
+  .stack { display:grid; gap:22px; }
+
+  /* every part is its own floating box */
+  .card { position:relative; border-radius:22px; border:1px solid var(--line); padding:22px 24px 24px;
+          background:linear-gradient(180deg, rgba(52,55,60,.62), rgba(12,13,15,.72));
+          box-shadow:0 50px 90px -34px rgba(0,0,0,.85), 0 0 0 1px rgba(255,255,255,.025) inset, 0 0 90px -34px var(--glow);
+          -webkit-backdrop-filter:blur(18px) saturate(1.25); backdrop-filter:blur(18px) saturate(1.25);
+          transition:border-color .35s ease, box-shadow .35s ease; }
+  .card:hover { border-color:rgba(220,225,231,.38); }
+  .eyebrow { display:flex; align-items:center; gap:12px; font-size:12px; letter-spacing:.2em; text-transform:uppercase; color:var(--graphite); }
+  .eyebrow b { font-weight:500; color:var(--faint); letter-spacing:.1em; }
+  .card h2 { margin:6px 0 4px; font-size:clamp(22px, 2.4vw, 28px); font-weight:500; letter-spacing:.005em; }
+  .sub { margin:0 0 14px; color:var(--graphite); font-size:14.5px; max-width:74ch; }
+
+  .cols { display:grid; grid-template-columns:3fr 2fr; gap:22px; align-items:start; }
+  @media (max-width: 900px) { .cols { grid-template-columns:1fr; } }
+
+  button { font:inherit; font-size:14px; min-height:40px; padding:0 16px; border-radius:999px; cursor:pointer; color:var(--ink);
+           background:rgba(255,255,255,.04); border:1px solid var(--line); transition:border-color .2s ease, background .2s ease; }
+  button:hover:not(:disabled) { border-color:rgba(220,225,231,.5); background:rgba(255,255,255,.08); }
+  button:disabled { color:var(--faint); cursor:default; border-style:dashed; }
+
+  /* the last line the network read */
+  .hero-head { display:flex; justify-content:space-between; align-items:flex-start; gap:8px 20px; flex-wrap:wrap; }
+  .meta { color:var(--graphite); font-size:14px; min-height:20px; }
+  .meta b { color:var(--ink); font-weight:600; }
+  .ctl { display:flex; gap:8px; }
+  .ctl button { min-height:34px; font-size:13px; padding:0 14px; }
+  .plate { margin-top:12px; border-radius:14px; border:1px solid rgba(205,211,219,.14); background:rgba(8,9,12,.72); padding:6px 18px 14px; }
+  #said { margin:10px 0 2px; font-weight:300; font-size:clamp(34px, 5vw, 62px); line-height:1.15; letter-spacing:.01em; word-break:break-word; min-height:1.15em; }
+  #said.none { color:var(--faint); font-size:clamp(20px, 2.4vw, 26px); font-weight:400; padding-top:.5em; }
+  #trace { display:block; width:100%; height:230px; margin-top:6px; }
+  .key { display:flex; gap:6px 18px; flex-wrap:wrap; color:var(--graphite); font-size:13px; margin-top:4px; }
+  .key span::before { content:""; display:inline-block; width:18px; height:3px; margin-right:7px; vertical-align:middle; background:var(--c); border-radius:2px; }
+  .key em { font-style:normal; color:var(--faint); }
+  .alts { margin-top:14px; display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:6px 24px; }
+  .alt .n { color:var(--graphite); font-size:12.5px; }
+  .alt .t { font-size:20px; word-break:break-word; }
+  .alt .t.diff { text-decoration:underline; text-decoration-color:var(--margin); text-decoration-thickness:2px; text-underline-offset:4px; }
+  .hint { color:var(--faint); font-size:14px; margin-top:12px; }
+
+  #dec { width:100%; display:block; margin-top:8px; }
+  .bar { display:flex; height:22px; border-radius:6px; overflow:hidden; background:var(--band); }
+  .bar i { display:block; height:100%; }
+  .bar i + i { border-left:2px solid rgba(5,6,10,.8); }
+  .tl { display:grid; grid-template-columns:auto 1fr auto; gap:6px 12px; margin-top:14px; font-size:14.5px; align-items:baseline; }
+  .tl .sw { width:10px; height:10px; border-radius:2px; align-self:center; }
+  .tl .nm { color:var(--graphite); }
+  .tl .v { text-align:right; }
+  .tl .v small { color:var(--faint); margin-left:6px; }
+
+  /* the ledger */
+  .rows { margin:6px -10px 0; }
+  .row { display:grid; grid-template-columns:92px 132px 1fr 240px 76px; align-items:center; height:50px; padding:0 12px; cursor:pointer; border:0; border-top:1px solid var(--rule-soft);
+         background:none; width:100%; text-align:left; font:inherit; color:inherit; min-height:0; border-radius:0; }
+  .row:first-child { border-top:0; }
+  .row:hover:not(:disabled) { background:rgba(255,255,255,.05); }
+  .row.sel { background:rgba(255,111,82,.12); }
+  .row .when { color:var(--faint); font-size:13.5px; }
+  .row svg { width:118px; height:38px; display:block; }
+  .row .txt { font-size:22px; font-weight:300; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:12px; }
+  .row .dc { color:var(--graphite); font-size:13.5px; }
+  .row .ms { text-align:right; }
+  .row .ms.slow { color:var(--margin); font-weight:600; }
+  .empty { padding:26px 12px; color:var(--faint); }
+  @media (max-width: 700px) {
+    .row { grid-template-columns:118px 1fr 62px; }
+    .row .when, .row .dc { display:none; }
+    .card { padding:18px 16px 20px; }
+  }
+
+
+  /* about: model, checkpoint and server numbers live here, at the bottom */
+  .about { position:relative; z-index:3; max-width:1180px; margin:34px auto 0; padding:0 22px; scroll-margin-top:20px; }
+  .about .card { padding:30px 30px 32px; }
+  .about h2 { font-size:clamp(28px, 3.6vw, 44px); margin:8px 0 8px; font-weight:400; }
+  .about .lede { max-width:68ch; color:var(--graphite); font-size:16.5px; margin:0 0 26px; }
+  .facts { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:0 24px; border-top:1px solid var(--line); }
+  @media (max-width: 760px) { .facts { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 440px) { .facts { grid-template-columns:1fr; } }
+  .fact { padding:18px 18px 16px 0; border-bottom:1px solid var(--line); }
+  .fact .l { font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:var(--faint); }
+  .fact .v { margin-top:4px; font-size:clamp(28px, 3.2vw, 42px); font-weight:300; line-height:1.15; word-break:break-word; }
+  .fact .v small { font-size:.4em; color:var(--faint); margin-left:.3em; }
+  .fact .v.small { font-size:clamp(20px, 2.2vw, 28px); font-weight:400; padding-top:.2em; overflow-wrap:anywhere; }
+  .about .more { margin-top:22px; display:flex; gap:10px 26px; flex-wrap:wrap; font-size:15px; color:var(--graphite); }
+  .foot { position:relative; z-index:3; max-width:1180px; margin:34px auto 0; padding:16px 22px 40px; border-top:1px solid var(--line); color:var(--graphite); font-size:14px; display:flex; gap:8px 28px; flex-wrap:wrap; justify-content:space-between; }
+
+  /* boxes expand into place on scroll */
+  .js .reveal { opacity:0; --ty:46px; --sc:.95; }
+  .js .reveal.in { opacity:1; --ty:0px; --sc:1; }
+  .reveal { --rx:0deg; --ry:0deg; transform:perspective(1100px) rotateX(var(--rx)) rotateY(var(--ry)) translateY(var(--ty, 0)) scale(var(--sc, 1));
+            transition:opacity .9s ease, transform .9s cubic-bezier(.2,.8,.2,1), border-color .35s ease, box-shadow .35s ease; }
+  .reveal.tilting { transition:opacity .9s ease, transform .12s linear, border-color .35s ease, box-shadow .35s ease; }
+  @media (max-width: 600px) { .nav, .about, .foot { padding-left:14px; padding-right:14px; } main { padding:0 14px; } }
+  @media (prefers-reduced-motion: reduce) {
+    .strip .track, .state.on i { animation:none; }
+    .js .reveal { opacity:1; --ty:0px; --sc:1; }
+    #word, .fontname { transition:none; }
+  }
+</style>
+<script>document.documentElement.classList.add("js");</script>
+</head>
+<body>
+<canvas id="stars" aria-hidden="true"></canvas>
+
+<nav class="nav" aria-label="Pages">
+  <span class="state" id="live"><i></i><span id="livetxt">Connecting…</span></span>
+  <span class="links"><a href="/">Write</a><a href="/dashboard">Dashboard</a><a href="#about">About</a><button id="reset" title="Clear everything the server remembers">Clear dashboard</button></span>
+</nav>
+
+<header class="top">
+  <h1 class="brand"><span id="word">ScribbleAI</span></h1>
+  <div class="fontname" id="fontname" aria-hidden="true"></div>
+  <p class="tag" id="summary">What the network read, and what it cost to read it.</p>
+</header>
+
+<main>
+  <div class="stack">
+    <section class="card reveal tilt" aria-labelledby="h-last">
+      <div class="eyebrow">The last line <b>01</b></div>
+      <h2 id="h-last">What the network read</h2>
+      <p class="sub">Ink is replayed as it was written. White means the network was sure at that point, grey unsure, orange torn. Underneath, where the pen was, are the raw letters the network emitted before beam search, the language model or spelling correction changed anything. The big text is the decoder's final answer, so any difference between the two is the decoder at work.</p>
+      <div class="hero-head">
+        <div class="meta" id="meta">Nothing written yet.</div>
+        <div class="ctl"><button id="replay" disabled>Replay</button><button id="follow" style="display:none">Follow live</button></div>
+      </div>
+      <div class="plate">
+        <p id="said" class="none">Write on the sheet and it appears here.</p>
+        <svg id="trace" role="img" aria-label="The pen trajectory coloured by the network's confidence"></svg>
+        <div class="key"><span style="--c:var(--ink)">sure</span><span style="--c:var(--graphite)">unsure</span><span style="--c:var(--margin)">torn</span><em>one reading per resampled ink point</em></div>
+      </div>
+      <div class="alts" id="alts"></div>
+      <div class="hint" id="althint" style="display:none">Press Compare decoders on the writing sheet to see where the decoders disagree on this line.</div>
+    </section>
+
+    <div class="cols">
+      <section class="card reveal tilt">
+        <div class="eyebrow">Decoding <b>02</b></div>
+        <h2>What each decoder costs</h2>
+        <p class="sub">Every request is a dot. The tick is the median. The network pass is the same for all four, so the gap between rows is pure decoding.</p>
+        <svg id="dec" role="img" aria-label="Latency per decoder"></svg>
+      </section>
+      <section class="card reveal tilt">
+        <div class="eyebrow">Timing <b>03</b></div>
+        <h2>Where the time goes</h2>
+        <p class="sub">Average per request, by stage.</p>
+        <div class="bar" id="bar"></div>
+        <div class="tl" id="tl"></div>
+      </section>
+    </div>
+
+    <section class="card reveal tilt">
+      <div class="eyebrow">Ledger <b>04</b></div>
+      <h2>The latest lines</h2>
+      <p class="sub">Newest first. One written word makes several rows because the page reads after every stroke. Click a row to put it on the plate above.</p>
+      <div class="rows" id="ledger"><div class="empty">No lines yet.</div></div>
+    </section>
+  </div>
+</main>
+
+
+<section class="about" id="about">
+  <div class="card reveal">
+    <div class="eyebrow">About <b>05</b></div>
+    <h2>The numbers behind the pen</h2>
+    <p class="lede">Everything here is held in the server's memory and disappears when it restarts. The page refreshes every 3 seconds.</p>
+    <div class="facts">
+      <div class="fact"><div class="l">Checkpoint</div><div class="v small" id="f-ck">&ndash;</div></div>
+      <div class="fact"><div class="l">Lines read</div><div class="v" id="f-count">&ndash;</div></div>
+      <div class="fact"><div class="l">Median</div><div class="v"><span id="f-med">&ndash;</span><small>ms</small></div></div>
+      <div class="fact"><div class="l">95th percentile</div><div class="v"><span id="f-p95">&ndash;</span><small>ms</small></div></div>
+      <div class="fact"><div class="l">Ink points per line</div><div class="v" id="f-frames">&ndash;</div></div>
+      <div class="fact"><div class="l">Server up</div><div class="v small" id="f-up">&ndash;</div></div>
+    </div>
+    <div class="more"><a href="/">Back to the writing sheet</a></div>
+  </div>
+</section>
+
+<footer class="foot"><span>Write on the sheet and this page fills in.</span><span>ScribbleAI dashboard</span></footer>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var NAMES = { greedy: "Greedy", beam: "Beam search", beam_lm: "Beam + language model", beam_lm_spell: "Beam + LM + spelling" };
+  var ORDER = ["greedy", "beam", "beam_lm", "beam_lm_spell"];
+  var STAGES = [["preprocess", "Preprocessing", "#5f7fb8"], ["model", "Network (BiLSTM)", "#a3b8de"], ["decode", "Decoding", "#e6edf9"]];
+  var NS = "http://www.w3.org/2000/svg";
+  var traces = {};                 // id -> trace, so thumbnails don't refetch
+  var stats = null, pinned = null, shownId = null, shownKey = "", anim = null;
+
+  function fmt(x) { return x >= 100 ? Math.round(x) : (x >= 10 ? x.toFixed(1) : x.toFixed(2)); }
+  function dur(s) { s = Math.round(s); if (s < 60) return s + " s"; var m = Math.floor(s / 60); if (m < 60) return m + " min"; return Math.floor(m / 60) + " h " + (m % 60) + " min"; }
+  function clock(t) { return new Date(t * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }); }
+  function el(n, a, parent) { var e = document.createElementNS(NS, n); for (var k in a) e.setAttribute(k, a[k]); if (parent) parent.appendChild(e); return e; }
+  function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  function fetchTrace(id) {
+    if (traces[id] && traces[id].conf) return Promise.resolve(traces[id]);
+    return fetch("/api/trace/" + id).then(function (r) { if (!r.ok) throw new Error("gone"); return r.json(); })
+      .then(function (t) { traces[id] = t; return t; });
+  }
+
+  /* ---------- bounds + projection shared by the big trace and the thumbnails ---------- */
+  function bounds(ink) {
+    var x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    ink.forEach(function (s) { s.forEach(function (p) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); }); });
+    return { x0: x0, x1: x1, y0: y0, y1: y1, w: Math.max(1e-6, x1 - x0), h: Math.max(1e-6, y1 - y0) };
+  }
+
+  /* ---------- thumbnails ---------- */
+  function thumb(svg, ink) {
+    svg.innerHTML = "";
+    if (!ink || !ink.length) return;
+    var W = 118, H = 38, pad = 3, b = bounds(ink), sc = Math.min((W - 2 * pad) / b.w, (H - 2 * pad) / b.h);
+    var ox = (W - b.w * sc) / 2, oy = (H - b.h * sc) / 2;
+    ink.forEach(function (s) {
+      var d = s.map(function (p, i) { return (i ? "L" : "M") + (ox + (p[0] - b.x0) * sc).toFixed(1) + " " + (oy + (p[1] - b.y0) * sc).toFixed(1); }).join("");
+      el("path", { d: d, fill: "none", stroke: "var(--ink)", "stroke-width": 1.3, "stroke-linecap": "round", "stroke-linejoin": "round" }, svg);
+    });
+  }
+
+  /* ---------- the big trace ---------- */
+  function drawTrace(t, upto) {
+    var svg = $("trace"); svg.innerHTML = "";
+    var ink = t.ink; if (!ink || !ink.length) return;
+    var W = Math.max(300, svg.clientWidth), H = svg.clientHeight, padX = 14, glyphH = t.conf ? 30 : 6, padT = 12;
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    var b = bounds(ink), sc = Math.min((W - 2 * padX) / b.w, (H - padT - glyphH - 6) / b.h);
+    var ox = (W - b.w * sc) / 2, oy = padT;
+    function X(p) { return ox + (p[0] - b.x0) * sc; }
+    function Y(p) { return oy + (p[1] - b.y0) * sc; }
+    var colour = { sure: css("--ink"), mid: css("--graphite"), torn: css("--margin") };
+    function cls(c) { return c == null ? "sure" : (c >= 0.8 ? "sure" : (c >= 0.5 ? "mid" : "torn")); }
+
+    var n = 0, glyphs = [];
+    ink.forEach(function (s) {
+      var run = null;
+      function flush() { if (run && run.pts.length > 1) { el("polyline", { points: run.pts.join(" "), fill: "none", stroke: colour[run.c], "stroke-width": 2.6, "stroke-linecap": "round", "stroke-linejoin": "round" }, svg); } run = null; }
+      s.forEach(function (p, i) {
+        var f = n++; if (f >= upto) return;
+        var c = cls(t.conf ? t.conf[f] : null), pt = X(p).toFixed(1) + "," + Y(p).toFixed(1);
+        if (!run) run = { c: c, pts: [pt] };
+        else if (run.c !== c) { var last = run.pts[run.pts.length - 1]; flush(); run = { c: c, pts: [last, pt] }; }
+        else run.pts.push(pt);
+        if (t.idx && t.idx[f] !== t.blank && (f === 0 || t.idx[f] !== t.idx[f - 1])) glyphs.push({ x: X(p), ch: t.chars[t.idx[f]], c: t.conf[f] });
+      });
+      flush();
+    });
+    if (t.conf) {
+      var gy = H - 8, last = -1e9;
+      glyphs.forEach(function (g) {
+        var x = Math.max(8, Math.min(W - 8, g.x)); if (x - last < 10) x = last + 10; last = x;
+        el("line", { x1: g.x, x2: x, y1: gy - 18, y2: gy - 14, stroke: "var(--rule)", "stroke-width": 1 }, svg);
+        var tx = el("text", { x: x, y: gy, "text-anchor": "middle", "font-size": 20, "font-weight": 500,
+                              fill: g.c >= 0.8 ? css("--ink") : (g.c >= 0.5 ? css("--graphite") : css("--margin")) }, svg);
+        tx.textContent = g.ch === " " ? "␣" : g.ch;
+      });
+    }
+  }
+
+  function replay(t) {
+    cancelAnimationFrame(anim);
+    var total = t.ink.reduce(function (a, s) { return a + s.length; }, 0), t0 = performance.now(), dur = 1400;
+    (function step(now) {
+      var f = Math.min(1, (now - t0) / dur);
+      drawTrace(t, Math.round(total * f));
+      if (f < 1) anim = requestAnimationFrame(step);
+    })(t0);
+  }
+
+  var current = null;
+  function showHero(row, animate) {
+    if (!row) return;
+    var key = row.id;
+    $("said").className = row.text ? "" : "none";
+    $("said").textContent = row.text || "(nothing recognised)";
+    $("meta").innerHTML = "";
+    var parts = [["", clock(row.t)], ["b", NAMES[row.mode] || row.mode], ["", row.strokes + (row.strokes === 1 ? " stroke" : " strokes") + ", " + row.frames + " frames"], ["b", fmt(row.total) + " ms"]];
+    parts.forEach(function (p, i) { if (i) $("meta").appendChild(document.createTextNode("  ·  ")); var e = document.createElement(p[0] || "span"); e.textContent = p[1]; $("meta").appendChild(e); });
+    $("follow").style.display = pinned ? "" : "none";
+    // decoder disagreement
+    var box = $("alts"); box.innerHTML = "";
+    if (row.alts) {
+      $("althint").style.display = "none";
+      ORDER.forEach(function (m) {
+        if (row.alts[m] === undefined) return;
+        var d = document.createElement("div"); d.className = "alt";
+        d.innerHTML = '<div class="n"></div><div class="t"></div>';
+        d.firstChild.textContent = NAMES[m]; d.lastChild.textContent = row.alts[m] || "(nothing)";
+        if (m !== "greedy" && row.alts[m] !== row.alts.greedy) d.lastChild.className = "t diff";
+        box.appendChild(d);
+      });
+    } else $("althint").style.display = "block";
+    fetchTrace(row.id).then(function (t) {
+      current = t; $("replay").disabled = false;
+      var k = row.id + ":" + (t.conf ? "c" : "n");
+      if (k !== shownKey) { shownKey = k; if (animate) replay(t); else drawTrace(t, 1e9); }
+    }).catch(function () {
+      $("trace").innerHTML = ""; $("replay").disabled = true;
+    });
+  }
+
+  /* ---------- cost of each decoder: strip plot ---------- */
+  function drawDecoders(by) {
+    var svg = $("dec"); svg.innerHTML = "";
+    var W = Math.max(320, svg.parentNode.clientWidth), rowH = 46, L = 168, R = 14, T = 6, B = 26, H = T + ORDER.length * rowH + B;
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H); svg.setAttribute("height", H);
+    var all = []; ORDER.forEach(function (m) { all = all.concat(by[m] || []); });
+    var top = Math.max(10, Math.ceil(Math.max.apply(null, all.concat([1])) / 5) * 5);
+    var X = function (v) { return L + (W - L - R) * v / top; };
+    var raw = top / 5, mag = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10)), step = mag * (raw / mag <= 1 ? 1 : (raw / mag <= 2 ? 2 : (raw / mag <= 5 ? 5 : 10)));
+    top = Math.ceil(top / step) * step;
+    X = function (v) { return L + (W - L - R) * v / top; };
+    for (var v = 0; v <= top; v += step) {
+      el("line", { x1: X(v), x2: X(v), y1: T, y2: H - B, stroke: "var(--rule-soft)", "stroke-width": 1 }, svg);
+      var tl = el("text", { x: X(v), y: H - 8, "text-anchor": v === top ? "end" : "middle", "font-size": 12, fill: "var(--faint)" }, svg); tl.textContent = v + (v === top ? " ms" : "");
+    }
+    ORDER.forEach(function (m, r) {
+      var cy = T + r * rowH + rowH / 2, vals = by[m] || [];
+      var lab = el("text", { x: 0, y: cy + 5, "font-size": 14.5, fill: vals.length ? css("--ink") : css("--faint") }, svg); lab.textContent = NAMES[m];
+      el("line", { x1: L, x2: W - R, y1: cy, y2: cy, stroke: "var(--rule)", "stroke-width": 1 }, svg);
+      if (!vals.length) { var e = el("text", { x: L + 6, y: cy - 8, "font-size": 12.5, fill: "var(--faint)" }, svg); e.textContent = "not used yet"; return; }
+      vals.forEach(function (x, i) {
+        var jit = ((i * 37) % 13 - 6) * 1.5;              // deterministic vertical scatter
+        el("circle", { cx: X(x), cy: cy + jit, r: 3.4, fill: "var(--ink)", opacity: 0.45 }, svg);
+      });
+      var s = vals.slice().sort(function (a, b) { return a - b; }), med = s[Math.floor((s.length - 1) / 2)];
+      el("line", { x1: X(med), x2: X(med), y1: cy - 15, y2: cy + 15, stroke: "var(--margin)", "stroke-width": 2.5, "stroke-linecap": "round" }, svg);
+      var mt = el("text", { x: Math.min(W - R, X(med) + 7), y: cy - 17, "font-size": 12, fill: "var(--margin)" }, svg); mt.textContent = fmt(med) + " ms  (" + vals.length + ")";
+    });
+  }
+
+  /* ---------- time split ---------- */
+  function drawTime(b) {
+    var sum = b.preprocess + b.model + b.decode, bar = $("bar"), tl = $("tl"); bar.innerHTML = ""; tl.innerHTML = "";
+    STAGES.forEach(function (s) {
+      var seg = document.createElement("i"); seg.style.width = (sum ? 100 * b[s[0]] / sum : 0) + "%"; seg.style.background = s[2]; seg.title = s[1]; bar.appendChild(seg);
+      var sw = document.createElement("span"); sw.className = "sw"; sw.style.background = s[2];
+      var nm = document.createElement("span"); nm.className = "nm"; nm.textContent = s[1];
+      var v = document.createElement("span"); v.className = "v"; v.textContent = fmt(b[s[0]]) + " ms";
+      var sm = document.createElement("small"); sm.textContent = sum ? Math.round(100 * b[s[0]] / sum) + "%" : ""; v.appendChild(sm);
+      tl.appendChild(sw); tl.appendChild(nm); tl.appendChild(v);
+    });
+  }
+
+  /* ---------- ledger ---------- */
+  function drawLedger(rows, p95) {
+    var box = $("ledger");
+    if (!rows.length) { box.innerHTML = '<div class="empty">No lines yet.</div>'; return; }
+    box.innerHTML = "";
+    rows.forEach(function (r) {
+      var b = document.createElement("button"); b.className = "row" + (r.id === shownId ? " sel" : ""); b.type = "button";
+      b.innerHTML = '<span class="when"></span><svg viewBox="0 0 118 38" aria-hidden="true"></svg><span class="txt"></span><span class="dc"></span><span class="ms"></span>';
+      b.children[0].textContent = clock(r.t);
+      b.children[2].textContent = r.text || "(nothing)";
+      b.children[3].textContent = (NAMES[r.mode] || r.mode) + (r.compare ? ", compared" : "");
+      b.children[4].textContent = fmt(r.total) + " ms"; if (p95 && r.total >= p95 && rows.length >= 8) b.children[4].className = "ms slow"; else b.children[4].className = "ms";
+      b.onclick = function () { pinned = r.id; shownKey = ""; render(); showHero(r, true); };
+      box.appendChild(b);
+      var svg = b.children[1];
+      if (traces[r.id]) thumb(svg, traces[r.id].ink); else fetchTrace(r.id).then(function (t) { thumb(svg, t.ink); }).catch(function () {});
+    });
+  }
+
+  function render() {
+    var s = stats; if (!s) return;
+    var has = !!s.count;
+    $("f-count").textContent = has ? s.count : "0";
+    $("f-med").textContent = has ? fmt(s.median_ms) : "–";
+    $("f-p95").textContent = has ? fmt(s.p95_ms) : "–";
+    $("f-frames").textContent = has ? Math.round(s.mean_frames) : "–";
+    $("f-up").textContent = dur(s.uptime_s);
+    $("f-ck").textContent = s.checkpoint || "–";
+    var target = null;
+    if (pinned) s.recent.forEach(function (r) { if (r.id === pinned) target = r; });
+    if (!target) { if (pinned) { var tr = traces[pinned]; } pinned = pinned && target ? pinned : null; target = s.recent[0] || null; }
+    shownId = target ? target.id : null;
+    $("follow").style.display = pinned ? "" : "none";
+    drawDecoders(s.lat_by_mode); drawTime(s.breakdown_ms); drawLedger(s.recent, s.p95_ms);
+    if (!target) { $("said").className = "none"; $("said").textContent = "Write on the sheet and it appears here."; $("meta").textContent = "Nothing written yet."; $("trace").innerHTML = ""; $("alts").innerHTML = ""; $("althint").style.display = "none"; $("replay").disabled = true; shownKey = ""; current = null; return; }
+    var isNew = (target.id + ":c") !== shownKey && (target.id + ":n") !== shownKey;
+    showHero(target, isNew);
+  }
+
+  function setLive(ok) { $("live").className = "state " + (ok ? "on" : "off"); $("livetxt").textContent = ok ? "live" : "server not responding"; }
+  function poll() {
+    fetch("/api/stats").then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+      .then(function (s) { stats = s; setLive(true); render(); }).catch(function () { setLive(false); });
+  }
+  $("replay").onclick = function () { if (current) replay(current); };
+  $("follow").onclick = function () { pinned = null; shownKey = ""; render(); };
+  $("reset").onclick = function () { traces = {}; pinned = null; shownKey = ""; fetch("/api/stats/reset", { method: "POST" }).then(poll); };
+  window.addEventListener("resize", function () { if (current) drawTrace(current, 1e9); if (stats) drawDecoders(stats.lat_by_mode); });
+  poll(); setInterval(poll, 3000);
+
+  /* ---------- distant stars: tiny dots plus a few pointy four-ray sparkles, slow twinkle, a little parallax ---------- */
+  (function () {
+    var cv = $("stars"), g = cv.getContext("2d"), S = [], W = 0, H = 0, sy = 0;
+    var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    function size() {
+      var d = Math.min(window.devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight;
+      cv.width = W * d; cv.height = H * d; g.setTransform(d, 0, 0, d, 0, 0);
+      var n = Math.round(Math.min(200, W * H / 8000)); S = [];
+      for (var i = 0; i < n; i++) {
+        var pointy = false, tint = Math.random() < .25 ? "190,215,255" : (Math.random() < .2 ? "255,228,196" : "255,255,255");
+        S.push({ x: Math.random() * W, y: Math.random() * H, pointy: pointy, r: pointy ? 3.5 + Math.random() * 6.5 : .35 + Math.random() * .6,
+                 a: pointy ? .55 + Math.random() * .4 : .25 + Math.random() * .55, ph: Math.random() * 6.3, sp: .35 + Math.random() * 1.1, z: .08 + Math.random() * .5, tint: tint });
+      }
+    }
+    function spark(x, y, r, col) {                       // four-pointed star: concave diamond, plus a soft core
+      var k = r * .16;
+      g.fillStyle = "rgb(" + col + ")"; g.beginPath();
+      g.moveTo(x, y - r); g.quadraticCurveTo(x + k, y - k, x + r, y); g.quadraticCurveTo(x + k, y + k, x, y + r);
+      g.quadraticCurveTo(x - k, y + k, x - r, y); g.quadraticCurveTo(x - k, y - k, x, y - r); g.fill();
+      var gr = g.createRadialGradient(x, y, 0, x, y, r * .55); gr.addColorStop(0, "rgba(" + col + ",.55)"); gr.addColorStop(1, "rgba(" + col + ",0)");
+      g.fillStyle = gr; g.beginPath(); g.arc(x, y, r * .55, 0, 6.3); g.fill();
+    }
+    function paint(t) {
+      g.clearRect(0, 0, W, H);
+      for (var i = 0; i < S.length; i++) {
+        var p = S[i], y = ((p.y - sy * p.z * .35) % H + H) % H, tw = reduce ? 1 : .6 + .4 * Math.sin(t / 1000 * p.sp + p.ph);
+        g.globalAlpha = p.a * tw;
+        if (p.pointy) spark(p.x, y, p.r * (.85 + .15 * tw), p.tint); else { g.fillStyle = "rgb(" + p.tint + ")"; g.beginPath(); g.arc(p.x, y, p.r, 0, 6.3); g.fill(); }
+      }
+    }
+    size(); paint(0);
+    addEventListener("resize", function () { size(); paint(0); });
+    addEventListener("scroll", function () { sy = scrollY; if (reduce) paint(0); }, { passive: true });
+    if (!reduce) (function loop(t) { if (!document.hidden) paint(t); requestAnimationFrame(loop); })(0);
+  })();
+
+  /* ---------- title: cycles through the display fonts installed on this machine (same as the live page) ---------- */
+  (function () {
+    var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var FONTS = [
+      { name: "Bank Gothic Md BT", fam: '"BankGothic Md BT","Bank Gothic","BankGothic Md","BankGothic"', extra: "font-weight:400;letter-spacing:.04em" }
+    ];
+    var cx = document.createElement("canvas").getContext("2d");
+    function width(f) { cx.font = "72px " + f; return cx.measureText("mmmmmmmmmmlliWW").width; }
+    function installed(fam) { var n = fam.split(","); for (var i = 0; i < n.length; i++) { var x = n[i].trim(); if (width(x + ", monospace") !== width("monospace") && width(x + ", serif") !== width("serif")) return true; } return false; }
+    var word = $("word"), cap = $("fontname");
+    function fit() { word.style.fontSize = ""; var avail = word.parentNode.clientWidth - 32, size = parseFloat(getComputedStyle(word).fontSize), w = word.scrollWidth; if (w > avail) word.style.fontSize = Math.max(30, Math.floor(size * avail / w)) + "px"; }
+    function apply(f) { word.style.cssText = "font-family:" + f.fam + ", Bahnschrift, 'Segoe UI', sans-serif;" + f.extra + ";"; cap.textContent = f.name; fit(); }
+    function start() {
+      var list = FONTS.filter(function (f) { return installed(f.fam); }), i = 0;
+      cap.style.display = "none"; if (!list.length) list = [FONTS[0]];
+      apply(list[0]); if (list.length < 2 || reduce) return;
+      setInterval(function () { word.classList.add("out"); cap.classList.add("out"); setTimeout(function () { i = (i + 1) % list.length; apply(list[i]); word.classList.remove("out"); cap.classList.remove("out"); }, 300); }, 3000);
+    }
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(start); else start();
+    addEventListener("resize", fit);
+
+    /* boxes expand into place as they scroll in, then tilt a little under the pointer */
+    var rev = document.querySelectorAll(".reveal");
+    if ("IntersectionObserver" in window && !reduce) {
+      var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }); }, { threshold: .08, rootMargin: "0px 0px -4% 0px" });
+      Array.prototype.forEach.call(rev, function (el) { io.observe(el); });
+    } else Array.prototype.forEach.call(rev, function (el) { el.classList.add("in"); });
+    if (!reduce && !(window.matchMedia && matchMedia("(pointer: coarse)").matches)) {
+      Array.prototype.forEach.call(document.querySelectorAll(".tilt"), function (el) {
+        el.addEventListener("pointermove", function (e) { var r = el.getBoundingClientRect(), x = (e.clientX - r.left) / r.width - .5, y = (e.clientY - r.top) / r.height - .5;
+          el.classList.add("tilting"); el.style.setProperty("--ry", (x * 3).toFixed(2) + "deg"); el.style.setProperty("--rx", (-y * 2.4).toFixed(2) + "deg"); });
+        el.addEventListener("pointerleave", function () { el.classList.remove("tilting"); el.style.setProperty("--ry", "0deg"); el.style.setProperty("--rx", "0deg"); });
+      });
+    }
+  })();
+})();
+</script>
+</body>
+</html>

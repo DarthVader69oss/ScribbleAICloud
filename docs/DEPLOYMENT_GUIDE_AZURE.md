@@ -11,9 +11,9 @@ Use **Git Bash on Windows**. Commands run from the root of `scribbleai-cloud` un
 | DynamoDB 30-day prediction log | Recent predictions live in process memory; history resets on restart, redeploy, or replica replacement |
 | AWS CloudWatch/SNS/Budgets | Log Analytics receives container logs; no SNS alarms or budget are provisioned |
 | GitHub Actions AWS deployment | GitHub Actions runs tests and Terraform validation; deploy from the laptop containing the uncommitted model |
-| Two models and model switch | One fine-tuned model; the model switch is hidden |
+| Two models and model switch | One fine-tuned model; the original ScribbleAI UI shows its checkpoint and decoder choices |
 
-The same vendored `ml/src`, export script, HTML canvas, dashboard, and `lambda/handler.py` inference logic are reused. The Lambda handler is called by the local HTTP adapter in Azure. `MODEL_IDS=finetuned`, and no AWS credentials are needed. This is a functional Azure demo, not an exact replacement for AWS's persistent logging, API key, throttling or alerts. The public URL accepts anonymous handwriting requests; use synthetic demo text.
+The original ScribbleAI `demo/static/index.html`, `demo/static/dashboard.html`, `demo/static/space-bg.jpg`, and `demo/app.py` are included. The server imports the vendored `ml/src` inference code and loads the exported fine-tuned model. No AWS credentials are needed. This is a functional Azure demo, not an exact replacement for AWS's persistent logging, API key, throttling or alerts. The public URL accepts anonymous handwriting requests; use synthetic demo text.
 
 ## 2. Replace the folder and update the GitHub repo
 
@@ -22,12 +22,12 @@ The same vendored `ml/src`, export script, HTML canvas, dashboard, and `lambda/h
 3. Delete these **old AWS-only paths** from your working folder if they remain after copying:
 
    ```bash
-   rm -rf infra/terraform deploy
-   rm -f Dockerfile scripts/first_deploy.sh scripts/upload_models.sh .github/workflows/ci-cd.yml docs/DEPLOYMENT_GUIDE.md
+   rm -rf infra/terraform deploy ui lambda
+   rm -f Dockerfile scripts/first_deploy.sh scripts/upload_models.sh scripts/local_server.py scripts/make_tiny_model.py tests/test_handler.py .github/workflows/ci-cd.yml docs/DEPLOYMENT_GUIDE.md
    ```
 
    The Azure package already omits those files, but copying over an existing folder does not remove them.
-4. Do **not** delete `lambda/`, `ml/`, `ui/`, `scripts/export_model.py`, `scripts/local_server.py`, or `.git`. The Azure server needs them.
+4. Do **not** delete `demo/`, `ml/`, `scripts/export_model.py`, or `.git`. The Azure server needs them. The original UI is in `demo/static/`.
 5. Check the resulting files:
 
    ```bash
@@ -65,10 +65,10 @@ ls -lh build/models/finetuned/model.pt
 Omit the `--lm` line if you do not have the character language model. That also removes the beam+LM modes. Optionally add `--corpus "../scribbleai/data/raw/corpus.txt"` if that file exists. The model is git-ignored. Verify it locally:
 
 ```bash
-MODEL_IDS=finetuned DEFAULT_MODEL=finetuned python scripts/local_server.py --models build/models
+python demo/app.py --ckpt build/models/finetuned/model.pt --no-gradio
 ```
 
-Open `http://127.0.0.1:7870/api/info` and confirm `finetuned` is available, then press Ctrl+C.
+Open `http://127.0.0.1:7860/api/info` and confirm `default_model` is `finetuned`, then press Ctrl+C. The canvas is at `/` and the original interactive dashboard is at `/dashboard`.
 
 ## 5. Configure Azure Terraform
 
@@ -106,7 +106,7 @@ terraform -chdir=infra/azure output -raw demo_url
 python scripts/smoke_test.py --url "$(terraform -chdir=infra/azure output -raw demo_url)"
 ```
 
-Open the printed HTTPS URL. `https://.../api/info` should show `default_model: finetuned` and `available: true`. Draw on the canvas and check the dashboard. For service logs:
+Open the printed HTTPS URL. `https://.../api/info` should show `default_model: finetuned` and `available: true`. Draw on the original canvas and open `/dashboard` to check the trace, timing and ledger. The original UI background image is served at `/space-bg.jpg`. For service logs:
 
 ```bash
 az containerapp logs show \

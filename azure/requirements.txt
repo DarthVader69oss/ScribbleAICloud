@@ -1,0 +1,4 @@
+# CPU PyTorch, FastAPI and Uvicorn are installed in Dockerfile.azure.
+numpy>=1.26,<3
+pyyaml>=6.0
+pyspellchecker>=0.7.0
