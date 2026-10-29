@@ -61,18 +61,6 @@ def main():
     def index():
         return FileResponse(ui / "index.html")
 
-    @app.get("/cloud-adapter.js")
-    def adapter():
-        return FileResponse(ui / "cloud-adapter.js", media_type="application/javascript")
-
-    @app.get("/space-bg.jpg")
-    def background():
-        return FileResponse(ui / "space-bg.jpg", media_type="image/jpeg")
-
-    @app.get("/dashboard")
-    def dashboard():
-        return FileResponse(ui / "dashboard.html")
-
     @app.get("/{page}.html")
     def page(page: str):
         f = ui / f"{page}.html"

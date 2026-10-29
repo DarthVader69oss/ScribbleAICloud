@@ -1,4 +1,4 @@
-# Terraform: state contains the API key and account ids. NEVER commit it.
+# Terraform state and local configuration: never commit them.
 *.tfstate
 *.tfstate.*
 .terraform/
@@ -6,7 +6,7 @@
 !terraform.tfvars.example
 crash.log
 
-# model files: share through S3, not git
+# Model files are baked into the locally built Docker image, not committed to Git.
 *.pt
 *.pth
 build/

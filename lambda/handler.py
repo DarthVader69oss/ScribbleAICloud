@@ -295,7 +295,7 @@ def _info():
                        "default_model": DEFAULT_MODEL, "models": models,
                        "cloud": {"region": REGION, "memory_mb": MEMORY_MB, "git_sha": GIT_SHA,
                                  "runtime": os.environ.get("AWS_EXECUTION_ENV", "local"),
-                                 "storage": "DynamoDB" if TABLE else "in-memory (local mode)"}})
+                                 "storage": "DynamoDB" if TABLE else "in-memory (container)"}})
 
 
 def _pct(sorted_vals, q):
@@ -316,7 +316,7 @@ def _stats():
                        for i in reversed(items[:40])],
             "recent": [{k: i.get(k) for k in ("ts", "model", "mode", "text", "total_ms", "confidence", "cold_start",
                                               "frames", "request_id")} for i in items[:12]],
-            "cloud": {"region": REGION, "storage": "DynamoDB" if TABLE else "in-memory (local mode)",
+            "cloud": {"region": REGION, "storage": "DynamoDB" if TABLE else "in-memory (container)",
                       "git_sha": GIT_SHA, "container_age_s": round(time.time() - _PROC_START)}}
     return _resp(200, body)
 

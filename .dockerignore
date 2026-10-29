@@ -1,0 +1,15 @@
+.git
+.github
+.venv
+venv
+infra
+docs
+tests
+.terraform
+*.tfstate*
+*.tfvars
+__pycache__
+*.pyc
+.local_models
+build/models/base
+build/models/*/best*.pt

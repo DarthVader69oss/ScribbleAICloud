@@ -34,4 +34,4 @@ strokes = [[[10 + k * 3, 40 + 12 * math.sin(k / 3), k * 0.01, 0.5] for k in rang
 for n in range(1, 4):
     r, ms = call(paths["predict"], {"strokes": strokes, "mode": "greedy"})
     c = r["cloud"]
-    print(f"predict{n} {ms:6.0f} ms  lambda {c['handler_ms']:.0f} ms  cold={c['cold_start']}  logged={c['logged']}  text={r['text']!r}")
+    print(f"predict{n} {ms:6.0f} ms  service {c['handler_ms']:.0f} ms  cold={c['cold_start']}  logged={c['logged']}  text={r['text']!r}")

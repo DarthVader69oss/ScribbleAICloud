@@ -6,3 +6,4 @@ github_repo = "YOUR-GITHUB-USER/scribbleai-cloud"
 # instance_type              = "t3.micro"   # pick the one marked "Free tier eligible" in the EC2 console
 # create_github_oidc_provider = true         # set false if the account already has the GitHub OIDC provider
 # allowed_cidr               = "0.0.0.0/0"  # restrict to your campus range if you prefer
+model_ids = ["finetuned", "base"]

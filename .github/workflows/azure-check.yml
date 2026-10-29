@@ -1,0 +1,22 @@
+name: Azure project checks
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install 'torch==2.5.1+cpu' --extra-index-url https://download.pytorch.org/whl/cpu
+      - run: pip install -r lambda/requirements.txt -r tests/requirements.txt
+      - run: pytest -q
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform -chdir=infra/azure init -backend=false
+      - run: terraform -chdir=infra/azure validate

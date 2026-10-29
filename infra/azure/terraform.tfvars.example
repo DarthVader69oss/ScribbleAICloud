@@ -1,0 +1,4 @@
+# Copy to terraform.tfvars. Get this ID with: az account show --query id -o tsv
+subscription_id = "00000000-0000-0000-0000-000000000000"
+location        = "centralindia"
+image_tag       = "v1"
