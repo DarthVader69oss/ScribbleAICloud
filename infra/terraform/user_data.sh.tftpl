@@ -1,0 +1,22 @@
+#!/bin/bash
+# First boot: install nginx, then let refresh-ui.sh (stored in S3, also run by every CI deploy) do the rest.
+set -euxo pipefail
+dnf install -y nginx
+
+cat > /etc/scribbleai.env <<ENV
+BUCKET=${bucket}
+REGION=${region}
+PROJECT=${project}
+ENV
+
+systemctl enable --now nginx
+
+# IAM and S3 can lag a few seconds behind instance start, so retry.
+for i in $(seq 1 30); do
+  if aws s3 cp --region ${region} s3://${bucket}/deploy/refresh-ui.sh /usr/local/bin/refresh-ui.sh \
+     && chmod +x /usr/local/bin/refresh-ui.sh \
+     && /usr/local/bin/refresh-ui.sh; then
+    break
+  fi
+  sleep 20
+done

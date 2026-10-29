@@ -1,0 +1,20 @@
+# Terraform: state contains the API key and account ids. NEVER commit it.
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+!terraform.tfvars.example
+crash.log
+
+# model files: share through S3, not git
+*.pt
+*.pth
+build/
+.local_models/
+
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+.env

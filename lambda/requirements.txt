@@ -1,0 +1,4 @@
+# torch is installed separately in the Dockerfile (CPU wheel). boto3 is already part of the Lambda base image.
+numpy>=1.26,<3
+pyyaml>=6.0
+pyspellchecker>=0.7.0
