@@ -69,7 +69,7 @@ Use your actual file paths. If `corpus.txt` does not exist, omit the `--corpus` 
 python demo/app.py --ckpt build/models/finetuned/model.pt --no-gradio
 ```
 
-Open `http://127.0.0.1:7860/api/info` and confirm `default_model` is `finetuned` and `modes` includes `greedy`, `beam`, `beam_lm` and `beam_lm_spell`, then press Ctrl+C. The canvas is at `/` and the original interactive dashboard is at `/dashboard`. If the LM modes are absent, verify that `build/models/finetuned/char_lm.json` exists, then restart the server.
+Open `http://127.0.0.1:7860/api/info` and confirm `default_model` is `finetuned` and `modes` includes `greedy`, `beam`, `beam_lm` and `beam_lm_spell`, then press Ctrl+C. The canvas is at `/` and the original interactive dashboard is at `/dashboard`. If the LM modes are absent although `char_lm.json` exists, use the updated `demo/app.py`: it passes an absolute path to the recognizer, whose path resolver otherwise looks under `ml/`.
 
 ## 5. Configure Azure Terraform
 
@@ -147,3 +147,12 @@ terraform -chdir=infra/azure destroy -var='image_tag=v2'
 ```
 
 Resource consumption, registry storage, and logs can incur charges while deployed; the project does not create an Azure budget. Container Apps has `min_replicas = 1` to keep the demo ready. Inspect Azure Cost Management and delete the stack when finished.
+
+```
+acr_login_server = "scribbleaiacrjxei0i.azurecr.io"
+acr_name = "scribbleaiacrjxei0i"
+app_name = "scribbleai-jxei0i-app"
+demo_url = "https://scribbleai-jxei0i-app.ashyhill-950cb6cf.uaenorth.azurecontainerapps.io"
+resource_group = "scribbleai-jxei0i-rg"
+https://scribbleai-jxei0i-app.ashyhill-950cb6cf.uaenorth.azurecontainerapps.io
+```

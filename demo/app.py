@@ -245,7 +245,9 @@ def main():
     if a.config:
         from src.utils import load_config
         overrides = load_config(a.config)["decoding"]
-    lm_path = Path(a.ckpt).with_name("char_lm.json")
+    # Recognizer resolves relative LM paths against ml/, not the current folder.
+    # Pass an absolute path so the exported sibling LM is found locally and in Docker.
+    lm_path = Path(a.ckpt).with_name("char_lm.json").resolve()
     rec = Recognizer(a.ckpt, device="cpu", char_lm_path=str(lm_path),
                      load_lm=lm_path.is_file(), load_spell=False, decoding_overrides=overrides)
     if lm_path.is_file():
